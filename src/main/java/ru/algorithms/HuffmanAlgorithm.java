@@ -69,7 +69,7 @@ public class HuffmanAlgorithm {
         this.encodeText = encodeSB.toString();
 
         System.out.print("The decoded string is: ");
-        StringBuilder decodeSB = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         if (isLeaf(root))
         {
             while (root.freq-- > 0) {

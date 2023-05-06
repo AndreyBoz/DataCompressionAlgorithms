@@ -1,95 +1,152 @@
 package ru.algorithms;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class AC {
+    private String text;
+    private String encodeText;
+    private String decodeText;
+    private int lengthText;
+    private char[] alphabet;
+    private double[] symbolProbabilities;
+    public AC(String text) {
+        this.text = text;
+        this.lengthText = text.length();
+        this.alphabet = defineAlphabet(text);
+        this.symbolProbabilities = defineSymbolProbabilities(text);
 
-    private Map<Character, Integer> charFrequency;
-    private Map<Character, Range> charRange;
-
-    public AC(String inputString) {
-        this.charFrequency = getCharFrequency(inputString);
-        this.charRange = getCharRange(charFrequency, inputString.length());
+        this.encodeText = String.valueOf(encode(text));
+        this.decodeText = decode(encodeText);
     }
+    private char[] defineAlphabet(String input){
+        Set<Character> alphabetSet = new HashSet<>();
+        for (int i = 0; i < input.length(); i++) {
+            alphabetSet.add(input.charAt(i));
+        }
+        char[] alphabet = new char[alphabetSet.size()];
+        int i = 0;
+        for (Character c : alphabetSet) {
+            alphabet[i++] = c;
+        }
+        Arrays.sort(alphabet);
+        return alphabet;
+    }
+    private double[] defineSymbolProbabilities(String input){
+        Map<Character, Integer> charFrequency = new HashMap<>();
+        double[] symbolProbabilities = new double[256];
+        int totalChars = input.length();
+        for(int i = 0;i<totalChars;i++){
+            char c = input.charAt(i);
+            if(charFrequency.containsKey(c)){
+                charFrequency.put(c,charFrequency.get(c)+1);
+                continue;
+            }
+            charFrequency.put(c,1);
+        }
+        /*// Calculate the frequency of each character in the input string
+        for (int i = 0; i < totalChars; i++) {
+            char c = input.charAt(i);
+            charFrequency.put(c, charFrequency.getOrDefault(c, 0) + 1);
+        }*/
 
-    public double encode() {
-        double lowerBound = 0.0;
-        double upperBound = 1.0;
-
-        for (Map.Entry<Character, Range> entry : charRange.entrySet()) {
+        // Calculate the probability of each character
+        for (Map.Entry<Character, Integer> entry : charFrequency.entrySet()) {
             char c = entry.getKey();
-            Range range = entry.getValue();
-
-            double rangeSize = upperBound - lowerBound;
-            upperBound = lowerBound + rangeSize * range.upper;
-            lowerBound = lowerBound + rangeSize * range.lower;
+            int freq = entry.getValue();
+            symbolProbabilities[c] = (double) freq / totalChars;
         }
 
-        double code = (upperBound + lowerBound) / 2.0;
-        return code;
+        return symbolProbabilities;
     }
-    public String decode(double code, int length) {
-        StringBuilder decodedString = new StringBuilder(length);
-        double lowerBound = 0.0;
-        double upperBound = 1.0;
-        int alphabetSize = 26; // assume all characters are upper case letters
-
-        for (int i = 0; i < length; i++) {
-            double rangeSize = upperBound - lowerBound;
-            for (int j = 0; j < alphabetSize; j++) {
-                char c = (char) ('A' + j); // Assume all characters are upper case letters
-                Range range = charRange.get(c);
-                if (range == null) continue; // skip non-existent characters
-
-                double symbolLowerBound = lowerBound + rangeSize * range.lower;
-                double symbolUpperBound = lowerBound + rangeSize * range.upper;
-
-                if (code >= symbolLowerBound && code < symbolUpperBound) {
-                    decodedString.append(c);
-                    upperBound = symbolUpperBound;
-                    lowerBound = symbolLowerBound;
+    private Range[] defineRangeEncode(){
+        Range[] ranges = new Range[256];
+        double left = 0;
+        for(int i = 0;i<alphabet.length;i++){
+            ranges[(int)alphabet[i]] = new Range();
+            ranges[(int)(alphabet[i])].setLeft(left);
+            ranges[(int)(alphabet[i])].setRight(left+symbolProbabilities[(int)(alphabet[i])]);
+            left = ranges[(int)(alphabet[i])].getRight();
+        }
+        return ranges;
+    }
+    private double encode(String input){
+        Range[] ranges = defineRangeEncode();
+        double low = 0;
+        double high = 1;
+        for (int i = 0; i < lengthText; i++) {
+            char c = text.charAt(i);
+            double rangeSize = high - low;
+            high = low + rangeSize * ranges[c].getRight();
+            low = low + rangeSize * ranges[c].getLeft();
+        }
+        return (low + high) / 2;
+    }
+    private Range[] defineRangeDecode() {
+        Range[] ranges = new Range[alphabet.length];
+        double left = 0;
+        for(int i = 0;i<alphabet.length;i++){
+            ranges[i] = new Range();
+            ranges[i].setLeft(left);
+            ranges[i].setRight(left+symbolProbabilities[(int)(alphabet[i])]);
+            ranges[i].setWord(alphabet[i]);
+            left = ranges[i].getRight();
+        }
+        return ranges;
+    }
+    private String decode(String input){
+        String result = "";
+        double code = Double.parseDouble(encodeText);
+        Range[] ranges = defineRangeDecode();
+        for(int i = 0;i<lengthText;i++){
+            for(int j = 0;j<alphabet.length;j++){
+                if(code >=ranges[j].getLeft() && code < ranges[j].getRight()){
+                    result+=ranges[j].getWord();
+                    code = (code-ranges[j].getLeft())/(ranges[j].getRight()-ranges[j].getLeft());
                     break;
                 }
             }
         }
-
-        return decodedString.toString();
-    }
-    private Map<Character, Integer> getCharFrequency(String inputString) {
-        Map<Character, Integer> charFrequency = new HashMap<>();
-        for (int i = 0; i < inputString.length(); i++) {
-            char c = inputString.charAt(i);
-            charFrequency.put(c, charFrequency.getOrDefault(c, 0) + 1);
-        }
-        return charFrequency;
-    }
-
-    private Map<Character, Range> getCharRange(Map<Character, Integer> charFrequency, int totalChars) {
-        Map<Character, Range> charRange = new HashMap<>();
-        double lower = 0.0;
-        for (Map.Entry<Character, Integer> entry : charFrequency.entrySet()) {
-            char c = entry.getKey();
-            int freq = entry.getValue();
-            double upper = lower + ((double) freq / totalChars);
-            charRange.put(c, new Range(lower, upper));
-            lower = upper;
-        }
-        return charRange;
+        return result;
     }
 
     private static class Range {
-        double lower;
-        double upper;
-
-        Range(double lower, double upper) {
-            this.lower = lower;
-            this.upper = upper;
+        private double left;
+        private double right;
+        private char word;
+        public Range() {}
+        public double getLeft() {
+            return left;
         }
 
-        @Override
-        public String toString() {
-            return "[" + lower + ", " + upper + "]";
+        public void setLeft(double left) {
+            this.left = left;
         }
+
+        public double getRight() {
+            return right;
+        }
+
+        public void setRight(double right) {
+            this.right = right;
+        }
+
+        public char getWord() {
+            return word;
+        }
+
+        public void setWord(char word) {
+            this.word = word;
+        }
+    }
+    public String getText() {
+        return text;
+    }
+
+    public String getEncodeText() {
+        return encodeText;
+    }
+
+    public String getDecodeText() {
+        return decodeText;
     }
 }
